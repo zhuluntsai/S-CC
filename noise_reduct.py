@@ -8,6 +8,8 @@ import json
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import cv2
+from PIL import Image
 
 label_dict = {
     -1: 'all',
@@ -104,47 +106,129 @@ def check_z(point_data, remove_point):
     plt.savefig(f'output/z.png')
     print(f'output/z.png are saved')
 
+def batch(x_list):
+    for i, x in enumerate(x_list):
+        try:
+            if x == 0:
+                x_list[i] = (x_list[i - 1] + x_list[i + 1]) / 2
+        except:
+            pass
+    return x_list
+
+def plot_dem_label(blank_elevation, label):
+    # blank_elevation = np.multiply(blank_elevation, label)
+    blank_elevation = remove_outliers(blank_elevation.ravel(), 5).reshape(blank_elevation.shape)
+    # fig, ax = plt.subplots(dpi=500)
+    # im = ax.imshow(blank_elevation, cmap='viridis', vmin=blank_elevation.min(), vmax=blank_elevation.max())
+    # v = np.linspace(blank_elevation.min(), blank_elevation.max(), 15, endpoint=True)
+    # fig.colorbar(im, ticks=v)
+    # plt.savefig('output/dem_from_point_cloud.png')
+
+    kernel = np.ones((3, 3), np.uint8)
+    # blank_elevation = cv2.blur(blank_elevation, (3, 3))
+    # blank_elevation = cv2.dilate(blank_elevation, (3, 3))
+    blank_elevation = cv2.dilate(blank_elevation, kernel)
+
+    cmap = mpl.colors.ListedColormap(["gray", "black", "orange", "black", "lime", "black", "red", "blue", "green"])
+    # ax3 = plt.subplot(313)
+    fig = plt.figure(dpi=500)
+    section = [650, 580]
+    print(blank_elevation.shape)
+    x = blank_elevation[section[1], :]
+    x_label = label[section[1], :]
+    y = blank_elevation[:, section[0]]
+    y_label = label[:, section[0]]
+
+    # x = batch(x)
+    # y = batch(y)
+
+    gs = fig.add_gridspec(2, 2,  width_ratios=(12, 1), height_ratios=(1, 8),
+                      left=0.1, right=0.9, bottom=0.1, top=0.9,
+                      wspace=0.05, hspace=0.05)
+
+    ax = fig.add_subplot(gs[1, 0])
+    ax.imshow(blank_elevation)
+    # ax.axvline(x=section[0], color='r')
+    # ax.axhline(y=section[1], color='r')
+    ax.scatter(np.repeat(section[0], len(y)), np.arange(len(y)), color=cmap(y_label)[:, :3], s=0.1)
+    ax.scatter(np.arange(len(x)), np.repeat(section[1], len(x)), color=cmap(x_label)[:, :3], s=0.1)
+
+    ax_x = fig.add_subplot(gs[0, 0], sharex=ax)
+    ax_y = fig.add_subplot(gs[1, 1], sharey=ax)
+
+    ax_x.tick_params(axis="x", labelbottom=False)
+    ax_y.tick_params(axis="y", labelleft=False)
+
+
+    ax_x.plot(x, alpha=0.2)
+    ax_x.scatter(np.arange(len(x)), x, color=cmap(x_label)[:, :3], s=0.2)
+    ax_y.plot(y, np.arange(len(y)), alpha=0.2)
+    ax_y.scatter(y, np.arange(len(y)), color=cmap(y_label)[:, :3], s=0.2)
+    plt.savefig('output/dem_from_point_cloud.png')
+
+
+
+def remove_outliers(data, sigma=8):
+    std = np.std(data)
+    mean = np.mean(data)
+    data = np.array([ d if abs(d - mean) < sigma * std else mean for d in data ])
+    return data
+
 def main():
-    las = laspy.read("stratmap18-50cm_2995222a1output(2).las")
-    point_data_1 = np.stack([las.x, las.y, las.z, las.classification], axis=0).transpose((1, 0))
+    # las = laspy.read("stratmap18-50cm_2995222a1output(2).las")
+    # point_data_1 = np.stack([las.x, las.y, las.z, las.classification], axis=0).transpose((1, 0))
 
-    las = laspy.read("stratmap18-50cm_2995222a3output(2).las")
-    point_data_2 = np.stack([las.x, las.y, las.z, las.classification], axis=0).transpose((1, 0))
+    # las = laspy.read("stratmap18-50cm_2995222a3output(2).las")
+    # point_data_2 = np.stack([las.x, las.y, las.z, las.classification], axis=0).transpose((1, 0))
 
-    point_data = np.vstack((point_data_1, point_data_2))
+    # point_data = np.vstack((point_data_1, point_data_2))
 
-    point_min = np.min(point_data, axis=0)
-    delta =  np.max(point_data, axis=0) - np.min(point_data, axis=0)
-    print(delta * 2)
-    print(point_data.shape)
+    # point_min = np.min(point_data, axis=0)
+    # delta =  np.max(point_data, axis=0) - np.min(point_data, axis=0)
+    # print(delta * 2)
+    # print(point_data.shape)
 
+    # label = np.load('label.npy')
+    # print(label.shape)
+
+    # lowerbound = 10.3
+    # upperbound = 35
+
+    # keep_point = []
+    # remove_point = []
+
+    # for i, point in enumerate(tqdm(point_data)):
+    #     coord = ((point - point_min) * 2).astype(int)
+    #     point[3] = int(label[label.shape[0] - coord[1] - 1, coord[0]])
+    #     # if point[3] in [0, 4, 6]:
+    #     #     if point[2] < lowerbound:
+    #     #         keep_point.append(point)
+    #     #     else:
+    #     #         remove_point.append(point)
+    #     # elif point[3] in [2, 8]:
+    #     #     if point[2] > lowerbound and point[2] < upperbound:
+    #     #         keep_point.append(point)
+    #     #     else:
+    #     #         remove_point.append(point)
+    # keep_point = np.array(keep_point)
+    # remove_point = np.array(remove_point)
+
+    # elevation = np.zeros(label.shape)
+    # for point in tqdm(point_data):
+    #     # print(point)
+    #     coord = ((point - point_min) * 2).astype(int)
+    #     elevation[label.shape[0] - coord[1] - 1, coord[0]] = point[2]
+    # np.save('elevation.npy', elevation.astype(float))
+
+    elevation = np.load('elevation.npy')
     label = np.load('label.npy')
-    print(label.shape)
-
-    lowerbound = 10.3
-    upperbound = 35
-
-    keep_point = []
-    remove_point = []
-    for i, point in enumerate(tqdm(point_data)):
-        coord = ((point - point_min) * 2).astype(int)
-        point[3] = int(label[label.shape[0] - coord[1] - 1, coord[0]])
-        if point[3] in [0, 4, 6]:
-            if point[2] < lowerbound:
-                keep_point.append(point)
-            else:
-                remove_point.append(point)
-        elif point[3] in [2, 8]:
-            if point[2] > lowerbound and point[2] < upperbound:
-                keep_point.append(point)
-            else:
-                remove_point.append(point)
-    keep_point = np.array(keep_point)
-    remove_point = np.array(remove_point)
+    plot_dem_label(elevation, label)
+    exit()
+    
 
     # for label in list(label_dict.keys()):
     #     check_outlier(new_point, label)
-    check_z(keep_point, remove_point)
+    # check_z(keep_point, remove_point)
 
     # geom = open3d.geometry.PointCloud()
     # geom.points = open3d.utility.Vector3dVector(new_point[:, :3])
