@@ -9,7 +9,6 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import cv2
-from PIL import Image
 
 label_dict = {
     -1: 'all',
@@ -115,6 +114,41 @@ def batch(x_list):
             pass
     return x_list
 
+def boxfilter(elevation, label):
+    width, height = elevation.shape
+
+    kernel = np.ones((7, 7))
+    kernel_center = [int(kernel.shape[0]/2), int(kernel.shape[1]/2)]
+
+    print(width)
+    new_image = np.zeros(elevation.shape)
+    for x in range(0, width, 1):
+        for y in range(0, height, 1):
+            pixel = elevation[x, y]
+
+            kernel_list = []
+            label_list = []
+            for i in range(0, kernel.shape[0], 1):
+                for j in range(0, kernel.shape[1], 1):
+                    if kernel[i, j] == 1:
+                        put_pixel_x = x + i - kernel_center[0]
+                        put_pixel_y = y + j - kernel_center[1]
+                        try:
+                            kernel_list.append(elevation[put_pixel_x, put_pixel_y])
+                            label_list.append(label[put_pixel_x, put_pixel_y])
+                        except:
+                            pass
+            
+            # print(kernel_list)
+            # print(label_list)
+            # print(label[x, y])
+            # print(np.mean(kernel_list))
+            kernel_list = [k  for k, l in zip(kernel_list, label_list) if l == label[x, y] and k != 0]
+
+            new_image[x, y] = np.mean(kernel_list)
+    
+    return new_image
+
 def plot_dem_label(blank_elevation, label):
     # blank_elevation = np.multiply(blank_elevation, label)
     blank_elevation = remove_outliers(blank_elevation.ravel(), 5).reshape(blank_elevation.shape)
@@ -124,10 +158,11 @@ def plot_dem_label(blank_elevation, label):
     # fig.colorbar(im, ticks=v)
     # plt.savefig('output/dem_from_point_cloud.png')
 
-    kernel = np.ones((3, 3), np.uint8)
+    # kernel = np.ones((3, 3), np.uint8)
     # blank_elevation = cv2.blur(blank_elevation, (3, 3))
     # blank_elevation = cv2.dilate(blank_elevation, (3, 3))
-    blank_elevation = cv2.dilate(blank_elevation, kernel)
+    # blank_elevation = cv2.dilate(blank_elevation, kernel)
+    blank_elevation = boxfilter(blank_elevation, label)
 
     cmap = mpl.colors.ListedColormap(["gray", "black", "orange", "black", "lime", "black", "red", "blue", "green"])
     # ax3 = plt.subplot(313)
