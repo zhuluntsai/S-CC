@@ -9,6 +9,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import cv2
+from pycocotools.coco import COCO
 
 label_dict = {
     -1: 'all',
@@ -19,10 +20,20 @@ label_dict = {
     8: 'trees', 
 }
 
-def remove_outliers(data, sigma=8):
-    std = np.std(data)
-    mean = np.mean(data)
-    data = np.array([ d if abs(d - mean) < sigma * std else mean for d in data ])
+def IQR(data, iteration):
+    q75, q25 = np.percentile(data, [75, 25])
+    median = np.median(data)
+    # data = np.array([ d if d > q25 and d < q75 else median for d in data ])
+    data = np.array([ d for d in data if d > q25 and d < q75 ])
+    return data
+
+def standard_deviation(data, sigma):
+    temp = [d for d in data if d != 0]
+    std = np.std(temp)
+    mean = np.mean(temp)
+    print(std, mean)
+    data = np.array([ d if abs(d - mean) < sigma * std else 0 for d in data ])
+    # data = np.array([ d for d in data if abs(d - mean) < sigma * std ])
     return data
 
 def check_outlier(point_data, label):
@@ -105,6 +116,14 @@ def check_z(point_data, remove_point):
     plt.savefig(f'output/z.png')
     print(f'output/z.png are saved')
 
+def check_mask(dsm_array, filename):
+    fig, ax = plt.subplots(dpi=500)
+    im = ax.imshow(dsm_array, cmap='viridis', vmin=dsm_array.min(), vmax=dsm_array.max())
+    v = np.linspace(dsm_array.min(), dsm_array.max(), 15, endpoint=True)
+    fig.colorbar(im, ticks=v)
+    plt.savefig(filename)
+
+
 def batch(x_list):
     for i, x in enumerate(x_list):
         try:
@@ -115,43 +134,96 @@ def batch(x_list):
     return x_list
 
 def boxfilter(elevation, label):
-    width, height = elevation.shape
+    height, width = elevation.shape
 
     kernel = np.ones((7, 7))
     kernel_center = [int(kernel.shape[0]/2), int(kernel.shape[1]/2)]
 
-    print(width)
     new_image = np.zeros(elevation.shape)
     for x in range(0, width, 1):
+        if np.mean(elevation[:, x]) == 0:
+            continue
         for y in range(0, height, 1):
-            pixel = elevation[x, y]
+            pixel = elevation[y, x]
 
             kernel_list = []
-            label_list = []
             for i in range(0, kernel.shape[0], 1):
                 for j in range(0, kernel.shape[1], 1):
                     if kernel[i, j] == 1:
                         put_pixel_x = x + i - kernel_center[0]
                         put_pixel_y = y + j - kernel_center[1]
                         try:
-                            kernel_list.append(elevation[put_pixel_x, put_pixel_y])
-                            label_list.append(label[put_pixel_x, put_pixel_y])
+                            kernel_list.append(elevation[put_pixel_y, put_pixel_x])
                         except:
                             pass
             
-            # print(kernel_list)
-            # print(label_list)
-            # print(label[x, y])
-            # print(np.mean(kernel_list))
-            kernel_list = [k  for k, l in zip(kernel_list, label_list) if l == label[x, y] and k != 0]
-
-            new_image[x, y] = np.mean(kernel_list)
+            kernel_list = [k for k in kernel_list if k != 0]
+            if len(kernel_list) == 0:
+                kernel_list.append(0)
+            new_image[y, x] = np.mean(kernel_list)
     
     return new_image
 
+def mask_filter(elevation, label):
+    json_file = 'instances_default.json'
+
+    coco = COCO(json_file)
+
+    img = coco.imgs[1]
+    sigma = 5
+
+    # anns_ids = coco.getAnnIds(imgIds=img['id'], catIds=2, iscrowd=None)
+    anns_ids = coco.getAnnIds(imgIds=img['id'], iscrowd=None)
+    anns = coco.loadAnns(anns_ids)
+
+    # max_area = 0
+    # max_anns = anns[0]
+    # for annotation in anns:
+    #     area = annotation['area']
+    #     if area > max_area:
+    #         max_area = area
+    #         max_anns = annotation
+
+    blank_mask = np.zeros((img['height'], img['width']))
+    for annotation in tqdm(anns):
+        mask = coco.annToMask(annotation)
+        mask_elevation = elevation * mask
+        blank_mask += boxfilter(mask_elevation, label) * mask
+        # blank_mask += mask_elevation
+        # mask_elevation = standard_deviation(mask_elevation.ravel(), sigma).reshape(mask_elevation.shape)
+        
+    check_mask(blank_mask, 'output/test_all.png')
+
+    # label_name = label_dict[2]
+    # binwidth = 0.1
+    
+    # height = [h for h in elevation.flatten() if h != 0]
+    # bins = np.arange(np.min(height), np.max(height) + binwidth, binwidth)
+    # print(bins)
+
+    # fig = plt.figure(dpi=500)
+    # fig.suptitle(f'label: {label_name}, point amount: {len(height)}')
+    # plt.subplots_adjust(hspace=1.2)
+
+    # mask = coco.annToMask(max_anns)
+    # ax1 = plt.subplot(211)
+    # ax1.title.set_text(f'original')
+    # plt.hist(height, bins=bins)
+    # plt.xlabel('z (height)')
+
+    # mask_elevation = [h for h in mask_elevation.flatten() if h != 0]
+    # ax2 = plt.subplot(212, sharex=ax1, sharey=ax1)
+    # ax2.title.set_text(f'mask, sigma:{sigma}')
+    # plt.hist(mask_elevation, bins=bins)
+    # plt.xlabel('z (height)')
+
+    # plt.savefig(f'output/outlier_z.png')
+    # print(f'output/outlier_z.png are saved')
+        
+
 def plot_dem_label(blank_elevation, label):
     # blank_elevation = np.multiply(blank_elevation, label)
-    blank_elevation = remove_outliers(blank_elevation.ravel(), 5).reshape(blank_elevation.shape)
+    blank_elevation = standard_deviation(blank_elevation.ravel(), 9).reshape(blank_elevation.shape)
     # fig, ax = plt.subplots(dpi=500)
     # im = ax.imshow(blank_elevation, cmap='viridis', vmin=blank_elevation.min(), vmax=blank_elevation.max())
     # v = np.linspace(blank_elevation.min(), blank_elevation.max(), 15, endpoint=True)
@@ -202,13 +274,6 @@ def plot_dem_label(blank_elevation, label):
     plt.savefig('output/dem_from_point_cloud.png')
 
 
-
-def remove_outliers(data, sigma=8):
-    std = np.std(data)
-    mean = np.mean(data)
-    data = np.array([ d if abs(d - mean) < sigma * std else mean for d in data ])
-    return data
-
 def main():
     # las = laspy.read("stratmap18-50cm_2995222a1output(2).las")
     # point_data_1 = np.stack([las.x, las.y, las.z, las.classification], axis=0).transpose((1, 0))
@@ -257,7 +322,9 @@ def main():
 
     elevation = np.load('elevation.npy')
     label = np.load('label.npy')
-    plot_dem_label(elevation, label)
+    # plot_dem_label(elevation, label)
+
+    mask_filter(elevation, label)
     exit()
     
 
