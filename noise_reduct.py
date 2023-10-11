@@ -22,7 +22,7 @@ label_dict = {
     8: 'trees', 
 }
 
-def IQR(data, iteration):
+def IQR(data):
     temp = [d for d in data if d != 0]
     q75, q25 = np.percentile(temp, [75, 25])
     median = np.median(temp)
@@ -34,11 +34,12 @@ def standard_deviation(data, sigma):
     temp = [d for d in data if d != 0]
     std = np.std(temp)
     mean = np.mean(temp)
+    print(std, mean)
     data = np.array([ d if abs(d - mean) < sigma * std else 0 for d in data ])
     # data = np.array([ d for d in data if abs(d - mean) < sigma * std ])
     return data
 
-def check_outlier(data, label):
+def check_outlier(data, label, ann_id):
     label_name = label_dict[label]
     binwidth = 0.1
     sigma = 1
@@ -51,18 +52,22 @@ def check_outlier(data, label):
 
     ax1 = plt.subplot(211)
     ax1.title.set_text(f'original')
-    plt.hist(data, bins=bins)
+    y, x, _ = plt.hist(data, bins=bins)
+    # print(y, x)
     plt.xlabel('z (height)')
 
-    data = standard_deviation(data, sigma)
-    data = standard_deviation(data, sigma)
+    for i in range(1):
+        data = standard_deviation(data, sigma)
+        count = len([ d for d in data if d == 0 ])
+        print(i, count)
+    # data = standard_deviation(data, sigma)
     ax2 = plt.subplot(212, sharex=ax1, sharey=ax1)
     ax2.title.set_text(f'mask, sigma:{sigma}')
     plt.hist(data, bins=bins)
     plt.xlabel('z (height)')
 
-    plt.savefig(f'output/outlier_{label}.png')
-    print(f'output/outlier_{label}.png are saved')
+    plt.savefig(f'output/outlier/{label}_{ann_id}.png')
+    print(f'output/outlier/{label}_{i}.png are saved')
 
 def check_z(point_data, remove_point):
     label_list = list(label_dict.keys())
@@ -95,10 +100,18 @@ def check_z(point_data, remove_point):
     plt.savefig(f'output/z.png')
     print(f'output/z.png are saved')
 
-def check_mask(dsm_array, filename):
-    fig, ax = plt.subplots(dpi=500)
-    im = ax.imshow(dsm_array, cmap='viridis', vmin=dsm_array.min(), vmax=dsm_array.max())
-    v = np.linspace(dsm_array.min(), dsm_array.max(), 15, endpoint=True)
+def check_mask(data, filename):
+    fig = plt.figure(dpi=500)
+
+    ax = plt.subplot(211)
+    binwidth = 0.1
+    temp = [ d for d in data.ravel() if d != 0 ]
+    bins = np.arange(np.min(temp), np.max(temp) + binwidth, binwidth)
+    plt.hist(temp, bins=bins)
+
+    ax = plt.subplot(212)
+    im = ax.imshow(data, cmap='viridis', vmin=data.min(), vmax=data.max())
+    v = np.linspace(data.min(), data.max(), 15, endpoint=True)
     fig.colorbar(im, ticks=v)
     plt.savefig(filename)
     print(f'{filename} are saved')
@@ -118,7 +131,7 @@ def check_boxplot(elevation, label):
     fig.colorbar(im, ticks=v)
     plt.savefig(f'output/test.png')
 
-def boxfilter(elevation, label, sigma):
+def boxfilter(elevation, label, sigma, cat_id):
     height, width = elevation.shape
     temp = [d for d in elevation.ravel() if d != 0]
     std = np.std(temp)
@@ -135,7 +148,10 @@ def boxfilter(elevation, label, sigma):
         for y in range(0, height, 1):
             pixel = elevation[y, x]
 
-            if mean - std * sigma < pixel and pixel < mean + std * sigma:
+            if pixel == 0 and label[y, x] == cat_id:
+                new_image[y, x] = mean
+                continue
+            elif mean - std * sigma < pixel and pixel < mean + std * sigma:
                 new_image[y, x] = pixel
                 count[0] += 1
                 continue
@@ -164,7 +180,7 @@ def mask_filter(elevation, label):
     coco = COCO(json_file)
 
     img = coco.imgs[1]
-    sigma = 0.5
+    sigma = 1
 
     for k in list(label_dict.keys()):
         anns_ids = coco.getAnnIds(imgIds=img['id'], catIds=k, iscrowd=None)
@@ -179,18 +195,25 @@ def mask_filter(elevation, label):
                 max_anns = annotation
 
         blank_mask = np.zeros((img['height'], img['width']))
-        mask = coco.annToMask(anns[0])    
-        for annotation in tqdm(anns):
-            mask = coco.annToMask(max_anns)
+        
+        mask = coco.annToMask(anns[0])
+        for i, annotation in enumerate(tqdm(anns)):
+            mask = coco.annToMask(annotation)
             mask_elevation = elevation * mask
-            mask_elevation = boxfilter(mask_elevation, label, sigma) * mask
-            # blank_mask += mask_elevation
+            mask_elevation = boxfilter(mask_elevation, label, sigma, k) * mask
+
+            blank_mask += mask_elevation
+
             # mask_elevation = standard_deviation(mask_elevation.ravel(), sigma).reshape(mask_elevation.shape)
             # check_mask(mask_elevation, f'output/{label_dict[catid]}_before.png')
-            check_mask(mask_elevation, f'output/{label_dict[k]}_after.png')
-            check_outlier(mask_elevation, k)
+            # check_outlier(mask_elevation, k, i)
         
-            exit()
+        blank_mask = standard_deviation(blank_mask.ravel(), sigma).reshape(blank_mask.shape)
+        blank_mask = standard_deviation(blank_mask.ravel(), sigma).reshape(blank_mask.shape)
+        mask_elevation = boxfilter(blank_mask, label, sigma, k) * (label == k)
+        
+        check_mask(mask_elevation, f'output/outlier/{k}.png')
+
 
     # mask_mask = np.invert(np.logical_and(mask, blank_mask))
     # blank_mask = (mask >= 1) * k + np.multiply(blank_mask, mask_mask)
@@ -320,8 +343,6 @@ def main():
     # check_dem_label(elevation, label)
     # check_boxplot(elevation, label)
     mask_filter(elevation, label)
-
-
 
 if __name__ == '__main__':
     main()
