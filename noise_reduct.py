@@ -12,21 +12,27 @@ import cv2
 from pycocotools.coco import COCO
 import matplotlib.cm as cm
 import copy
+import rioxarray as rxr
+from skimage.transform import resize
 
 label_dict = {
     # -1: 'all',
     # 0: 'background',
     # 2: 'buildings',
-    # 4: 'grass',
+    4: 'grass',
     6: 'pedestrian walk',
-    8: 'trees', 
+    # 8: 'trees', 
 }
 
 def IQR(data):
     temp = [d for d in data if d != 0]
     q75, q25 = np.percentile(temp, [75, 25])
+    iqr = q75 - q25
+    iqr_span = 1
+    upper_bound = q75 + iqr_span * iqr
+    lower_bound = q25 - iqr_span * iqr
     median = np.median(temp)
-    data = np.array([ d if d > q25 and d < q75 else 0 for d in data ])
+    data = np.array([ d if d > lower_bound and d < upper_bound else 0 for d in data ])
     # data = np.array([ d for d in data if d > q25 and d < q75 ])
     return data
 
@@ -143,8 +149,6 @@ def boxfilter(elevation, label, sigma, cat_id):
 
     new_image = np.zeros(elevation.shape)
     for x in range(0, width, 1):
-        if np.mean(elevation[:, x]) == 0:
-            continue
         for y in range(0, height, 1):
             pixel = elevation[y, x]
 
@@ -195,24 +199,27 @@ def mask_filter(elevation, label):
                 max_anns = annotation
 
         blank_mask = np.zeros((img['height'], img['width']))
+        blank_mask = elevation * (label == k)
         
-        mask = coco.annToMask(anns[0])
-        for i, annotation in enumerate(tqdm(anns)):
-            mask = coco.annToMask(annotation)
-            mask_elevation = elevation * mask
-            mask_elevation = boxfilter(mask_elevation, label, sigma, k) * mask
+        # mask = coco.annToMask(anns[0])
+        # for i, annotation in enumerate(tqdm(anns)):
+        #     mask = coco.annToMask(annotation)
+        #     mask_elevation = elevation * mask
+            # mask_elevation = boxfilter(mask_elevation, label, sigma, k) * mask
 
-            blank_mask += mask_elevation
+            # blank_mask += mask_elevation
 
-            # mask_elevation = standard_deviation(mask_elevation.ravel(), sigma).reshape(mask_elevation.shape)
-            # check_mask(mask_elevation, f'output/{label_dict[catid]}_before.png')
+            # check_mask(mask_elevation, f'output/{k}_3.png')
             # check_outlier(mask_elevation, k, i)
         
-        blank_mask = standard_deviation(blank_mask.ravel(), sigma).reshape(blank_mask.shape)
-        blank_mask = standard_deviation(blank_mask.ravel(), sigma).reshape(blank_mask.shape)
+        # blank_mask = standard_deviation(blank_mask.ravel(), sigma).reshape(blank_mask.shape)
+        # blank_mask = standard_deviation(blank_mask.ravel(), sigma).reshape(blank_mask.shape)
+        blank_mask = IQR(blank_mask.ravel()).reshape(label.shape)
+        blank_mask = IQR(blank_mask.ravel()).reshape(label.shape)
+        check_mask(blank_mask, f'output/outlier/{k}_before.png')
         mask_elevation = boxfilter(blank_mask, label, sigma, k) * (label == k)
         
-        check_mask(mask_elevation, f'output/outlier/{k}.png')
+        check_mask(mask_elevation, f'output/outlier/{k}_after.png')
 
 
     # mask_mask = np.invert(np.logical_and(mask, blank_mask))
@@ -339,6 +346,11 @@ def point_visualization(point):
 def main():
     elevation = np.load('elevation.npy')
     label = np.load('label.npy')
+
+    file_path = 'a5_las_lasda_23.tif'
+    dsm = rxr.open_rasterio(file_path, masked=True).squeeze()
+    dsm_array = np.array(dsm)
+    elevation = resize(dsm_array, elevation.shape)
 
     # check_dem_label(elevation, label)
     # check_boxplot(elevation, label)
