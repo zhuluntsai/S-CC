@@ -137,7 +137,7 @@ def check_boxplot(elevation, label):
     fig.colorbar(im, ticks=v)
     plt.savefig(f'output/test.png')
 
-def boxfilter(elevation, label, sigma, cat_id):
+def box_filter(elevation, label, sigma, cat_id):
     height, width = elevation.shape
     temp = [d for d in elevation.ravel() if d != 0]
     std = np.std(temp)
@@ -159,6 +159,8 @@ def boxfilter(elevation, label, sigma, cat_id):
                 new_image[y, x] = pixel
                 count[0] += 1
                 continue
+            elif pixel == 0:
+                continue
 
             kernel_list = []
             for i in range(0, kernel.shape[0], 1):
@@ -179,7 +181,7 @@ def boxfilter(elevation, label, sigma, cat_id):
     return new_image
 
 def mask_filter(elevation, label):
-    json_file = 'instances_default.json'
+    json_file = 'combine.json'
 
     coco = COCO(json_file)
 
@@ -205,7 +207,7 @@ def mask_filter(elevation, label):
         # for i, annotation in enumerate(tqdm(anns)):
         #     mask = coco.annToMask(annotation)
         #     mask_elevation = elevation * mask
-            # mask_elevation = boxfilter(mask_elevation, label, sigma, k) * mask
+            # mask_elevation = box_filter(mask_elevation, label, sigma, k) * mask
 
             # blank_mask += mask_elevation
 
@@ -217,7 +219,7 @@ def mask_filter(elevation, label):
         blank_mask = IQR(blank_mask.ravel()).reshape(label.shape)
         blank_mask = IQR(blank_mask.ravel()).reshape(label.shape)
         check_mask(blank_mask, f'output/outlier/{k}_before.png')
-        mask_elevation = boxfilter(blank_mask, label, sigma, k) * (label == k)
+        mask_elevation = box_filter(blank_mask, label, sigma, k) * (label == k)
         
         check_mask(mask_elevation, f'output/outlier/{k}_after.png')
 
@@ -234,7 +236,6 @@ def mask_filter(elevation, label):
     # ax.imshow(mask_mask * mask_mask, cmap=cmap, alpha=1, vmin=mask_mask.min() + 0.001)
     # plt.savefig('output/overlap2.png')
          
-
 def check_dem_label(blank_elevation, label):
     # blank_elevation = np.multiply(blank_elevation, label)
     blank_elevation = standard_deviation(blank_elevation.ravel(), 9).reshape(blank_elevation.shape)
@@ -347,7 +348,7 @@ def main():
     elevation = np.load('elevation.npy')
     label = np.load('label.npy')
 
-    file_path = 'a5_las_lasda_23.tif'
+    file_path = 'data/a5_las_lasda_23.tif'
     dsm = rxr.open_rasterio(file_path, masked=True).squeeze()
     dsm_array = np.array(dsm)
     elevation = resize(dsm_array, elevation.shape)

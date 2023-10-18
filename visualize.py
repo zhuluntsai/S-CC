@@ -39,20 +39,7 @@ import cv2
 import json
 from skimage.transform import resize
 
-
 def main():
-    # filename = 'tnris/stratmap18-50cm_2995222a1.laz'
-
-    # f = laspy.open(filename)
-    # print('Points from Header:', f.header.point_count)
-    # las = f.read()
-
-    # buildings = laspy.create(point_format=las.header.point_format, file_version=las.header.version)
-    # buildings.points = las.points[las.classification == 6]
-
-    # point_data = np.stack([buildings.X, buildings.Y, buildings.Z], axis=0).transpose((1, 0))
-    # point_data = np.stack([las.X, las.Y, las.Z], axis=0).transpose((1, 0))
-
     las = laspy.read("./tnris/stratmap18-50cm_2995222a1.laz")
     point_data_1 = np.stack([las.x, las.y, las.z], axis=0).transpose((1, 0))
 
@@ -149,15 +136,6 @@ def print_npy():
 
     print(label)
 
-def check_overlap():
-    # Folder path
-    file_path = 'a5_las_lasda_20.tif'
-    # file_path = './data/Map.jpg'
-    dsm = rxr.open_rasterio(file_path, masked=True).squeeze()
-
-    # To numpy array
-    dsm_array = np.array(dsm)
-
 def mask_filter():
     # json_file = 'combine.json'
     json_file = 'instances_default.json'
@@ -219,37 +197,6 @@ def shift():
     # with open("test.json", "w") as f:
     #     json.dump(data, f)
 
-def combine():
-    json_file = 'instances_default.json'
-    data = json.load(open(json_file, "r"))
-    width, height = data['images'][0]['width'], data['images'][0]['height']
-
-    new_annotations = []
-
-    # shift
-    for a in data['annotations']:
-        if a['image_id'] == 1:
-            if a['category_id'] in [2, 8]:
-                
-                new_annotations.append(a)
-        elif a['image_id'] == 2:
-            if a['category_id'] in [4, 6]:
-                a['image_id'] = 1
-                new_annotations.append(a)
-
-    data['annotations'] = new_annotations
-
-    anntation_length = len(data['annotations'])
-    for i, a in enumerate(data['annotations']):
-        if anntation_length > i:
-            new_a = a.copy()
-            new_a['id'] = anntation_length + new_a['id']
-            new_a['image_id'] = 2
-            data['annotations'].append(new_a)
-        
-    # with open("combine.json", "w") as f:
-    #     json.dump(data, f)
-
 if __name__ == '__main__':
     # main()
     # read_img()
@@ -261,4 +208,3 @@ if __name__ == '__main__':
     # mask_filter()
 
     # shift()
-    # combine()

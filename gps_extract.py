@@ -45,7 +45,38 @@ def grid_search(array, target):
             return i
     return -1
 
+def plot_frequency(frequency_dict):
+    # sort dict by value
+    keys = list(frequency_dict.keys())
+    values = list(frequency_dict.values())
+    sorted_value_index = np.flip(np.argsort(values))
+    sorted_dict = {keys[i]: values[i] for i in sorted_value_index if values[i] != 0}
+    
+    # plot
+    fig = plt.figure(dpi=500, figsize=(20,6))
+    x = np.arange(0, len(sorted_dict), 1)
+    y = list(sorted_dict.values())
+    label = list(sorted_dict.keys())
 
+    # add info
+    plt.bar(x, y)
+    for i in range(len(x)):
+        plt.text(i, y[i], int(y[i]), ha='center')
+    plt.xticks(np.arange(0, len(sorted_dict), 1), labels=label)
+    plt.tight_layout()
+    plt.savefig('frequency.png')
+
+def plot_scatter(x_grid, y_grid, points, letters, index):
+    fig = plt.figure(dpi=500)
+    x = np.tile(np.arange(1, len(x_grid), 1), len(y_grid) - 1)
+    y = np.repeat(np.arange(len(y_grid) - 1, 0, -1), len(x_grid) - 1)
+    s = points.ravel() * 0.05
+
+    plt.xticks(np.arange(1, len(x_grid), 1), labels=letters)
+    plt.yticks(np.arange(1, len(y_grid), 1), labels=np.flip(index))
+    plt.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
+    plt.scatter(x, y, s=s, alpha=0.5)
+    plt.savefig('frequency.png')
 
 def extract_frequency():
     letters = list(string.ascii_uppercase)[:12]
@@ -89,6 +120,14 @@ def extract_frequency():
         print(points.astype(int))
         print(np.sum(points))
 
+    # Create frequency dict
+    label = [ f'{l}{i}' for i in index for l in letters ]
+    frequency_dict = {}
+    for p, l in zip(points.ravel(), label):
+        frequency_dict[l] = p
+
+    plot_scatter(x_grid, y_grid, points, letters, index) 
+    plot_frequency(frequency_dict)
 
 def main():
     # export_csv()
