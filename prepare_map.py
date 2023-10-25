@@ -12,8 +12,9 @@ def export_raster(code):
         return data
     
     tif_file = f'data/{code}.tif'
+    # tif_file = f'data/a5_las_lasda_23.tif'
     png_file = f'data/{code}.png'
-    output_path = f'output/{code}.png'
+    output_path = f'output/{code}_dem.png'
     
     dsm = rxr.open_rasterio(tif_file, masked=True).squeeze()
     dsm_array = np.array(dsm)
@@ -21,8 +22,8 @@ def export_raster(code):
     image = Image.open(png_file)
     w, h = image.size
 
-    dsm_array = remove_outliers(dsm_array.ravel()).reshape(dsm_array.shape)
     dsm_array = resize(dsm_array, (h, w))
+    dsm_array = remove_outliers(dsm_array.ravel()).reshape(dsm_array.shape)
     plt.imsave(output_path, dsm_array, cmap='gray', vmin=dsm_array.min(), vmax=dsm_array.max() )
     print(f'{output_path} are saved')
 
