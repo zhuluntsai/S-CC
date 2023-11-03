@@ -16,18 +16,19 @@ label_dict = {
     8: 'trees', 
 }
 
-def combine_image_id(json_file, code):
+def combine_image_id(code):
+    json_file = f'data/{code}.json'
     data = json.load(open(json_file, "r"))
     width, height = data['images'][0]['width'], data['images'][0]['height']
-    output_path = f"output/{code}.json"
+    output_path = f"output/json/{code}_combine.json"
     new_annotations = []
 
     for a in data['annotations']:
         if a['image_id'] == 1:
-            if a['category_id'] in [2, 8]:
+            if a['category_id'] in [4, 6]:
                 new_annotations.append(a)
         elif a['image_id'] == 2:
-            if a['category_id'] in [4, 6]:
+            if a['category_id'] in [2, 8]:
                 a['image_id'] = 1
                 new_annotations.append(a)
 
@@ -37,13 +38,15 @@ def combine_image_id(json_file, code):
         json.dump(data, f)
         print(f'{output_path} are saved')
         
-def convert_to_mask(json_file):
+def convert_to_mask(code):
+    json_file = f'output/json/{code}_combine.json'
     coco = COCO(json_file)
     img = coco.imgs[1]
     blank_mask = np.zeros((img['height'], img['width']))
 
     # background: 0, asphalt: 1, building: 2, grass: 4, pedestrian walk: 6, tree, 8 
     for cat_id in [4, 2, 8, 6]:
+        print(cat_id)
         anns_ids = coco.getAnnIds(imgIds=img['id'], catIds=cat_id, iscrowd=None)
         anns = coco.loadAnns(anns_ids)
 
@@ -55,8 +58,9 @@ def convert_to_mask(json_file):
             mask_mask = np.invert(np.logical_and(mask, blank_mask))
             blank_mask = (mask >= 1) * cat_id + np.multiply(blank_mask, mask_mask)
     
-            # plt.imsave(f'output/{cat_id}.png', blank_mask)
-            # plt.imsave(f'output/{cat_id}_mask.png', mask)
+            plt.imsave(f'output/{cat_id}.png', blank_mask)
+            plt.imsave(f'output/{cat_id}_mask.png', mask)
+            print(f'output/{cat_id}.png are saved')
 
     # np.save('label.npy', blank_mask.astype(int))
     return blank_mask.astype(int)
@@ -93,12 +97,10 @@ def mask_filter(label, code):
         
         check_mask(mask_elevation, f'output/outlier/{k}_final.png')
 
-
 if __name__ == '__main__':
     code = 'C5'
-    json_file = 'instances_default.json'
 
-    combine_image_id(json_file, code)
-    label = convert_to_mask(json_file)
+    combine_image_id(code)
+    label = convert_to_mask(code)
 
-    mask_filter(label, code)
+    # mask_filter(label, code)
