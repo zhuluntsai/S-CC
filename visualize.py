@@ -17,7 +17,6 @@ import math
 
 from pylab import *
 import datetime
-import pvlib
 
 import time
 import rioxarray as rxr
@@ -169,7 +168,9 @@ def mask_filter():
     print_npy()
 
 def shift():
-    json_file = 'instances_default.json'
+    code = 'C6'
+
+    json_file = f'data/{code}.json'
     data = json.load(open(json_file, "r"))
 
     # coco = COCO(json_file)
@@ -194,17 +195,45 @@ def shift():
             new_a['image_id'] = 2
             data['annotations'].append(new_a)
         
-    # with open("test.json", "w") as f:
-    #     json.dump(data, f)
+    with open("test.json", "w") as f:
+        json.dump(data, f)
+
+def resize_annotation():
+    code = 'C6'
+    
+    json_file = f'data/{code}.json'
+    # json_file = 'test.json'
+    data = json.load(open(json_file, "r"))
+    w1, h1 = data['images'][0]['width'], data['images'][0]['height']
+    
+    png_file = f'data/{code}.png'
+    image = Image.open(png_file)
+    w2, h2 = image.size
+    w2, h2 = 2388, 1727
+
+    ratio_w = w2 / w1
+    ratio_h = h2 / h1
+    ratio = [ratio_w, ratio_h]
+
+    # shift
+    for a in data['annotations']:
+        a['segmentation'][0] = [coord * ratio[i % 2] for i, coord in enumerate(a['segmentation'][0])]
+        a['segmentation'][0] = [w2 if coord > w2 and not i % 2 else coord for i, coord in enumerate(a['segmentation'][0])]
+        a['segmentation'][0] = [h2 if coord > h2 and i % 2 else coord for i, coord in enumerate(a['segmentation'][0])]
+    
+        
+    with open("test.json", "w") as f:
+        json.dump(data, f)
 
 if __name__ == '__main__':
     # main()
     # read_img()
     # find_file()
-    read_tif()
+    # read_tif()
 
     # append_to_las()
     # print_npy()
     # mask_filter()
 
     # shift()
+    resize_annotation()

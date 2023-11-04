@@ -62,16 +62,18 @@ def convert_to_mask(code):
             plt.imsave(f'output/{cat_id}_mask.png', mask)
             print(f'output/{cat_id}.png are saved')
 
-    # np.save('label.npy', blank_mask.astype(int))
+    np.save(f'output/label/{code}.npy', blank_mask.astype(int))
     return blank_mask.astype(int)
 
-def mask_filter(label, code):
+def mask_filter(code):
     tif_file = f'data/{code}.tif'
     dsm = rxr.open_rasterio(tif_file, masked=True).squeeze()
     dsm_array = np.array(dsm)
+
+    label = np.load(f'output/label/{code}.npy')
     elevation = resize(dsm_array, label.shape)
 
-    json_file = f"output/{code}.json"
+    json_file = f'output/json/{code}_combine.json'
     coco = COCO(json_file)
     img = coco.imgs[1]
     sigma = 1
@@ -95,12 +97,51 @@ def mask_filter(label, code):
             blank_mask = IQR(blank_mask.ravel()).reshape(label.shape)
             mask_elevation = box_filter(blank_mask, label, sigma, k) * (label == k)
         
-        check_mask(mask_elevation, f'output/outlier/{k}_final.png')
+        check_mask(mask_elevation, f'output/outlier/{code}_{k}_final.png')
+    
+    return mask_elevation
+
+def stick():
+    code_list = ['C5', 'C6']
+    letters = sorted(set([ c[0] for c in code_list]))
+    index = sorted(set([ c[1:] for c in code_list]))
+    print(letters)
+    print(index)
+
+    json_file = f'output/json/{code_list[0]}_combine.json'
+    coco = COCO(json_file)
+    img = coco.imgs[1]
+    h, w= img['height'], img['width']
+    blank_mask = np.zeros((h * len(index), w * len(letters)))
+    print(blank_mask.shape)
+    
+    for x, l in enumerate(letters):
+        for y, i in enumerate(index):
+            code = f'{l}{i}'
+            if code in code_list:
+                # tif_file = f'data/{code}.tif'
+                # dsm = rxr.open_rasterio(tif_file, masked=True).squeeze()
+                # dsm_array = np.array(dsm)
+                # dsm_array = resize(dsm_array, (h, w))
+
+                # label = np.load(f'output/label/{code}.npy')
+                # print(label.shape)
+                # print(h*y, h*(y+1), w*x, w*(x+1))
+                # blank_mask[h*y: h*(y+1), w*x: w*(x+1)] = label
+
+                mask_elevation = mask_filter(code)
+                blank_mask[h*y: h*(y+1), w*x: w*(x+1)] = mask_elevation
+
+    plt.imsave(f'output/test.png', blank_mask)
+    # np.savetxt("test.csv", blank_mask[1600:1700, :].astype(int), delimiter=",")
+
+
 
 if __name__ == '__main__':
-    code = 'C5'
+    code = 'D7'
 
     combine_image_id(code)
-    label = convert_to_mask(code)
+    convert_to_mask(code)
 
-    # mask_filter(label, code)
+    # mask_filter(code)
+    # stick()
