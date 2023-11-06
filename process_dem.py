@@ -65,6 +65,12 @@ def convert_to_mask(code):
     np.save(f'output/label/{code}.npy', blank_mask.astype(int))
     return blank_mask.astype(int)
 
+def add_mask(new, canvas):
+    mask_mask = np.invert(np.logical_and(new, canvas))
+    canvas = (new >= 1) * new + np.multiply(mask_mask, canvas)
+    
+    return canvas
+
 def mask_filter(code):
     tif_file = f'data/{code}.tif'
     dsm = rxr.open_rasterio(tif_file, masked=True).squeeze()
@@ -78,10 +84,11 @@ def mask_filter(code):
     img = coco.imgs[1]
     sigma = 1
 
+    blank_mask = np.zeros((img['height'], img['width']))
     for k in tqdm(list(label_dict.keys())):
         anns_ids = coco.getAnnIds(imgIds=img['id'], catIds=k, iscrowd=None)
         anns = coco.loadAnns(anns_ids)
-        blank_mask = np.zeros((img['height'], img['width']))
+        cat_mask = np.zeros((img['height'], img['width']))
         
         if k in [2, 8]:
             mask = coco.annToMask(anns[0])
@@ -89,20 +96,19 @@ def mask_filter(code):
                 mask = coco.annToMask(annotation)
                 mask_elevation = elevation * mask
                 mask_elevation = box_filter(mask_elevation, label, sigma, k) * mask
-                blank_mask += mask_elevation
+                cat_mask = add_mask(mask_elevation, cat_mask)                
 
         if k in [4, 6]:
-            blank_mask = elevation * (label == k)
-            blank_mask = IQR(blank_mask.ravel()).reshape(label.shape)
-            blank_mask = IQR(blank_mask.ravel()).reshape(label.shape)
-            mask_elevation = box_filter(blank_mask, label, sigma, k) * (label == k)
+            mask_elevation = elevation * (label == k)
+            mask_elevation = IQR(mask_elevation.ravel()).reshape(label.shape)
+            cat_mask = box_filter(mask_elevation, label, sigma, k) * (label == k)
         
-        check_mask(mask_elevation, f'output/outlier/{code}_{k}_final.png')
+        check_mask(cat_mask, f'output/outlier/{code}_{k}_final.png')
+        blank_mask = add_mask(cat_mask, blank_mask)    
     
-    return mask_elevation
+    return blank_mask
 
-def stick():
-    code_list = ['C5', 'C6']
+def stick(code_list):
     letters = sorted(set([ c[0] for c in code_list]))
     index = sorted(set([ c[1:] for c in code_list]))
     print(letters)
@@ -133,15 +139,17 @@ def stick():
                 blank_mask[h*y: h*(y+1), w*x: w*(x+1)] = mask_elevation
 
     plt.imsave(f'output/test.png', blank_mask)
+    np.save(f'output/elevation.npy', blank_mask.astype(int))
     # np.savetxt("test.csv", blank_mask[1600:1700, :].astype(int), delimiter=",")
 
 
 
 if __name__ == '__main__':
     code = 'D7'
+    code_list = ['C5', 'C6']
 
-    combine_image_id(code)
-    convert_to_mask(code)
+    # combine_image_id(code)
+    # convert_to_mask(code)
 
     # mask_filter(code)
-    # stick()
+    stick(code_list)

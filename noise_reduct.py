@@ -39,7 +39,7 @@ def IQR(data):
     temp = [d for d in data if d != 0]
     q75, q25 = np.percentile(temp, [75, 25])
     iqr = q75 - q25
-    iqr_span = 1
+    iqr_span = 0
     upper_bound = q75 + iqr_span * iqr
     lower_bound = q25 - iqr_span * iqr
     median = np.median(temp)
@@ -160,6 +160,8 @@ def box_filter(elevation, label, sigma, cat_id):
 
     new_image = np.zeros(elevation.shape)
     for x in range(0, width, 1):
+        if np.sum((elevation[:, x] > 0)) == 0:
+            continue
         for y in range(0, height, 1):
             pixel = elevation[y, x]
 
@@ -355,117 +357,7 @@ def point_visualization(point):
     # open3d.visualization.draw_geometries([geom])
     open3d.io.write_point_cloud('label.pcd', geom)
 
-def covert_coordinate(array, X1, Y1, ratio_w, ratio_h, h):
-    for a in array:
-        a[0] = round((a[0] - X1) * ratio_w)
-        a[1] = h - round((a[1] - Y1) * ratio_h)
-    return array.ravel()
-
-def get_buildings():
-    tags = {'building': True}
-    transformer = Transformer.from_crs("EPSG:6344", "EPSG:4326")
-    place = 'Magnolia Park, Texas, USA'
-    area = ox.geocode_to_gdf(place)
-    filename = 'data/C5.shp'
-    X1, Y1, X2, Y2 = shapefile.Reader(filename).bbox
-    latitude, longitude = (X1 + X2) / 2, (Y1 + Y2) / 2 
-    latitude, longitude = transformer.transform(latitude, longitude)
-    buildings = ox.geometries_from_point((latitude, longitude), tags)
-    
-    fig = plt.figure(dpi=500)
-    # ax = buildings.plot()
-    # ax = area.plot()
-    # ax.figure.savefig('test.png')
-    
-    df = gpd.read_file(filename)
-    df.crs = "EPSG:6344"
-    def getFeatures(gdf):
-        """Function to parse features from GeoDataFrame in such a manner that rasterio wants them"""
-        import json
-        return json.loads(gdf.to_crs(4326).to_json())['features'][0]['geometry']
-    coords = getFeatures(df)['coordinates'][0]
-    # coords = tuple([ transformer.transform(c[0], c[1]) for c in coords ])
-    # coords = tuple([ tuple(c) for c in coords ])
-    # print(coords)
-    polygon = Polygon(coords)
-    buildings = ox.geometries_from_polygon(polygon, tags)
-
-    buildings = buildings.to_crs('epsg:6344')
-    c = buildings.geometry.apply(lambda x: np.array(x.exterior.coords).ravel())
-    # print(c)
-    # print(type(buildings))
-    # print(buildings)
-    # print(buildings.geometry)
-    # print(buildings.mask)
-
-    png_file = f'data/C5.png'
-    image = Image.open(png_file)
-    w, h = image.size
-
-    ratio_w = w / (X2 - X1)
-    ratio_h = h / (Y2 - Y1)
-
-    data = json.load(open('template.json'))
-    
-    for i, g in enumerate(buildings.geometry):
-        array = np.array(g.exterior.coords)
-        array = covert_coordinate(array, X1, Y1, ratio_w, ratio_h, h)
-    
-        array = [ a for i , a in enumerate(array) if a > 0 or a < image.size[i%2] ]
-        if len(array) == 0:
-            continue
-
-
-
-        annotation = {
-            "id": i,
-            "image_id": 1,
-            "category_id": 2,
-            "segmentation": [array],
-            "area": g.area,
-            "bbox": g.bounds,
-            "iscrowd": 0,
-            "attributes": {
-                "occluded": False
-            }
-        }
-
-        data['annotations'].append(annotation)
-
-    with open("test.json", "w") as f:
-        json.dump(data, f)
-
-    
-
-    #     exit()
-    lon = np.arange(X1, X2)
-    lat = np.arange(Y1, Y2)
-    lon = np.arange(-180, 180)
-    lat = np.arange(-90, 90)
-
-    # mask = regionmask.mask_geopandas(buildings.geometry, lon, lat)
-
-    fig = plt.figure(dpi=500, frameon=False)
-    ax = buildings.plot()
-    ax.set_xlim(X1, X2)
-    ax.set_ylim(Y1, Y2)
-    ax.set_axis_off()
-    ax.figure.savefig('test.png', bbox_inches='tight', pad_inches=0)
-
-    # buildings.to_file('test.shp')  
-    # src = rasterio.open('test.shp')
-
-    # print(coords)
-    # out, _ = mask(data, gdf.geometry, invert=False)
-    # clipped_array, _ = mask(dataset=buildings, shapes=coords, crop=True)
-    
-    # polygon = [(X1, Y1), (X2, Y1), (X2, Y2), (X1, Y2), (X1, Y1)]
-    # for i, p in enumerate(polygon):
-    #     polygon[i] = transformer.transform(p[0], p[1])
-    # shp = Polygon(polygon)
-    # buildings = ox.geometries_from_polygon(shp, tags)
-
-def main():
+# def main():
     # elevation = np.load('elevation.npy')
     # label = np.load('label.npy')
 
@@ -478,7 +370,5 @@ def main():
     # # check_boxplot(elevation, label)
     # mask_filter(elevation, label)
 
-    get_buildings()
-
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
