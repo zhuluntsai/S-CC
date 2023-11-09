@@ -5,11 +5,13 @@ from pycocotools.coco import COCO
 from skimage.transform import resize
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from noise_reduct import IQR, check_mask, box_filter
+from PIL import Image
+from noise_reduct import IQR, check_mask, box_filter, check_boxplot
 
 label_dict = {
     # -1: 'all',
     # 0: 'background',
+    1: 'asphalt',
     2: 'buildings',
     4: 'grass',
     6: 'pedestrian walk',
@@ -46,7 +48,6 @@ def convert_to_mask(code):
 
     # background: 0, asphalt: 1, building: 2, grass: 4, pedestrian walk: 6, tree, 8 
     for cat_id in [4, 2, 8, 6]:
-        print(cat_id)
         anns_ids = coco.getAnnIds(imgIds=img['id'], catIds=cat_id, iscrowd=None)
         anns = coco.loadAnns(anns_ids)
 
@@ -58,12 +59,15 @@ def convert_to_mask(code):
             mask_mask = np.invert(np.logical_and(mask, blank_mask))
             blank_mask = (mask >= 1) * cat_id + np.multiply(blank_mask, mask_mask)
     
-            plt.imsave(f'output/{cat_id}.png', blank_mask)
-            plt.imsave(f'output/{cat_id}_mask.png', mask)
-            print(f'output/{cat_id}.png are saved')
+            # plt.imsave(f'output/label/{cat_id}.png', blank_mask)
+            # plt.imsave(f'output/label/{cat_id}_mask.png', mask)
 
+    elevation = np.load(f'output/dem/{code}.npy')
+    blank_mask = (blank_mask == 0) + blank_mask
+    blank_mask = blank_mask * (elevation > 0)
+    
     np.save(f'output/label/{code}.npy', blank_mask.astype(int))
-    return blank_mask.astype(int)
+    print(f'output/label/{code}.npy')
 
 def add_mask(new, canvas):
     mask_mask = np.invert(np.logical_and(new, canvas))
@@ -71,14 +75,7 @@ def add_mask(new, canvas):
     
     return canvas
 
-def mask_filter(code):
-    tif_file = f'data/{code}.tif'
-    dsm = rxr.open_rasterio(tif_file, masked=True).squeeze()
-    dsm_array = np.array(dsm)
-
-    label = np.load(f'output/label/{code}.npy')
-    elevation = resize(dsm_array, label.shape)
-
+def mask_filter(code, elevation, label):
     json_file = f'output/json/{code}_combine.json'
     coco = COCO(json_file)
     img = coco.imgs[1]
@@ -98,7 +95,7 @@ def mask_filter(code):
                 mask_elevation = box_filter(mask_elevation, label, sigma, k) * mask
                 cat_mask = add_mask(mask_elevation, cat_mask)                
 
-        if k in [4, 6]:
+        if k in [1, 4, 6]:
             mask_elevation = elevation * (label == k)
             mask_elevation = IQR(mask_elevation.ravel()).reshape(label.shape)
             cat_mask = box_filter(mask_elevation, label, sigma, k) * (label == k)
@@ -118,6 +115,7 @@ def stick(code_list):
     coco = COCO(json_file)
     img = coco.imgs[1]
     h, w= img['height'], img['width']
+    # blank_mask = np.zeros((h * len(index), w * len(letters), 4))
     blank_mask = np.zeros((h * len(index), w * len(letters)))
     print(blank_mask.shape)
     
@@ -125,31 +123,26 @@ def stick(code_list):
         for y, i in enumerate(index):
             code = f'{l}{i}'
             if code in code_list:
-                # tif_file = f'data/{code}.tif'
-                # dsm = rxr.open_rasterio(tif_file, masked=True).squeeze()
-                # dsm_array = np.array(dsm)
-                # dsm_array = resize(dsm_array, (h, w))
-
-                # label = np.load(f'output/label/{code}.npy')
-                # print(label.shape)
-                # print(h*y, h*(y+1), w*x, w*(x+1))
-                # blank_mask[h*y: h*(y+1), w*x: w*(x+1)] = label
-
-                mask_elevation = mask_filter(code)
+                elevation = np.load(f'output/dem/{code}.npy')
+                label = np.load(f'output/label/{code}.npy')
+                image = np.asarray(Image.open(f'data/{code}.png')) / 255
+                
+                mask_elevation = mask_filter(code, elevation, label)
+                
+                # blank_mask[h*y: h*(y+1), w*x: w*(x+1), :] = image
                 blank_mask[h*y: h*(y+1), w*x: w*(x+1)] = mask_elevation
 
     plt.imsave(f'output/test.png', blank_mask)
-    np.save(f'output/elevation.npy', blank_mask.astype(int))
+    np.save(f'output/dem/elevation.npy', blank_mask.astype(int))
     # np.savetxt("test.csv", blank_mask[1600:1700, :].astype(int), delimiter=",")
 
 
 
 if __name__ == '__main__':
-    code = 'D7'
-    code_list = ['C5', 'C6']
+    code_list = ['C6', 'C6', 'D7']
 
-    # combine_image_id(code)
-    # convert_to_mask(code)
+    for code in code_list:
+        combine_image_id(code)
+        convert_to_mask(code)
 
-    # mask_filter(code)
     stick(code_list)

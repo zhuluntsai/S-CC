@@ -24,8 +24,8 @@ def export_raster(code):
     dsm = rxr.open_rasterio(tif_file, masked=True).squeeze()
     dsm_array = np.array(dsm)
 
-    image = Image.open(png_file)
-    w, h = image.size
+    with Image.open(png_file) as image:
+        w, h = image.size
 
     dsm_array = resize(dsm_array, (h, w))
     # dsm_array = remove_outliers(dsm_array.ravel()).reshape(dsm_array.shape)
@@ -43,7 +43,7 @@ def get_buildings(code):
         return json.loads(gdf.to_crs(4326).to_json())['features'][0]['geometry']['coordinates'][0]
 
     tags = {'building': True}
-    tags = {'drive': True}
+    # tags = {'drive': True}
     transformer = Transformer.from_crs("EPSG:6344", "EPSG:4326")
     shape_file = f'data/{code}.shp'
     png_file = f'data/{code}.png'
@@ -51,25 +51,26 @@ def get_buildings(code):
     X1, Y1, X2, Y2 = shapefile.Reader(shape_file).bbox
     latitude, longitude = (X1 + X2) / 2, (Y1 + Y2) / 2 
     latitude, longitude = transformer.transform(latitude, longitude)
-    # buildings = ox.geometries_from_point((latitude, longitude), tags)
+    buildings = ox.features_from_point((latitude, longitude), tags)
     
-    streets_graph = ox.graph_from_point((latitude, longitude), network_type='drive')
-    streets_graph = ox.projection.project_graph(streets_graph)
-    buildings = ox.graph_to_gdfs(streets_graph, nodes=False, edges=True,
-                                   node_geometry=False, fill_edge_geometry=True)
+    # streets_graph = ox.graph_from_point((latitude, longitude), network_type='drive')
+    # streets_graph = ox.projection.project_graph(streets_graph)
+    # buildings = ox.graph_to_gdfs(streets_graph, nodes=False, edges=True,
+    #                                node_geometry=False, fill_edge_geometry=True)
         
     df = gpd.read_file(shape_file)
     df.crs = "EPSG:6344"
     polygon = Polygon(getFeatures(df))
-    # buildings = ox.geometries_from_polygon(polygon, tags)
+    buildings = ox.features_from_polygon(polygon, tags)
     buildings = buildings.to_crs('EPSG:6344')
 
-    image = Image.open(png_file)
-    w, h = image.size
-    ratio_w = w / (X2 - X1)
-    ratio_h = h / (Y2 - Y1)
+    with Image.open(png_file) as image:
+        w, h = image.size
+        ratio_w = w / (X2 - X1)
+        ratio_h = h / (Y2 - Y1)
 
-    data = json.load(open('template.json'))
+    with open('template.json') as f:
+        data = json.load(f)
 
     for i, f in enumerate([f'{code}.png', f'{code}_dem.png']):
         image_dict = {
@@ -109,7 +110,7 @@ def get_buildings(code):
 
         data['annotations'].append(annotation)
 
-    with open(f"output/json/{code}.json", "w") as f:
+    with open(f"output/json/{code}_buildings.json", "w") as f:
         json.dump(data, f)
 
     fig = plt.figure(dpi=500, frameon=False)
@@ -118,11 +119,11 @@ def get_buildings(code):
     ax.set_ylim(Y1, Y2)
     ax.set_axis_off()
     ax.figure.savefig(f'output/json/{code}.png', bbox_inches='tight', pad_inches=0)
-    print(f'{code} are saved')
+    print(f'output/json/{code}.png are saved')
 
 if __name__ == '__main__':
     code_list = ['B6', 'C5', 'D6', 'D7']
-    code_list = ['C6']
+    # code_list = ['C6']
 
     for code in code_list:
         export_raster(code)
