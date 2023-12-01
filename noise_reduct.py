@@ -1,38 +1,22 @@
 import laspy
 import open3d
-import os
-import pandas as pd
 import numpy as np
-import rasterio
-import json
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import cv2
 from pycocotools.coco import COCO
-import matplotlib.cm as cm
-import copy
-import rioxarray as rxr
-from skimage.transform import resize
-import osmnx as ox
-import geopandas as gpd
-from pyproj import Transformer
-from shapely import Polygon
-import shapefile
-from rasterio.mask import mask
-import geopandas as gpd
-import regionmask
-from PIL import Image
+
 import warnings
 warnings.filterwarnings("ignore")
 
 label_dict = {
     # -1: 'all',
     # 0: 'background',
-    # 2: 'buildings',
+    1: 'asphalt',
+    2: 'buildings',
     4: 'grass',
     6: 'pedestrian walk',
-    # 8: 'trees', 
+    8: 'trees', 
 }
 
 def IQR(data):
@@ -140,8 +124,9 @@ def check_boxplot(elevation, label):
     ax1 = plt.subplot(111)
     plt.boxplot(box_list, labels=list(label_dict.values()))
     plt.savefig(f'output/outlier_boxplot.png')
+    print(f'output/outlier_boxplot.png')
 
-    elevation = IQR(elevation.ravel(), 1).reshape(elevation.shape)
+    elevation = IQR(elevation.ravel()).reshape(elevation.shape)
     fig, ax = plt.subplots(dpi=500)
     im = ax.imshow(elevation, cmap='viridis', vmin=elevation.min(), vmax=elevation.max())
     v = np.linspace(elevation.min(), elevation.max(), 15, endpoint=True)

@@ -8,7 +8,7 @@ from pyproj import Transformer
 import shapefile
 import osmnx as ox
 import geopandas as gpd
-from shapely import Polygon
+from shapely.geometry import Polygon
 
 def remove_outliers(data, sigma=4):
         std = np.std(data)
@@ -30,6 +30,7 @@ def export_raster(code):
     dsm_array = resize(dsm_array, (h, w))
     # dsm_array = remove_outliers(dsm_array.ravel()).reshape(dsm_array.shape)
     plt.imsave(output_path, dsm_array, cmap='gray', vmin=dsm_array.min(), vmax=dsm_array.max() )
+    np.save(f'output/dem/{code}.npy', dsm_array)
     print(f'{output_path} are saved')
 
 def get_buildings(code):
@@ -87,7 +88,6 @@ def get_buildings(code):
         data['images'].append(image_dict)
     
     for i, g in enumerate(buildings.geometry):
-        break
         array = np.array(g.exterior.coords)
         array = covert_coordinate(array, X1, Y1, ratio_w, ratio_h, h)
     
@@ -122,8 +122,9 @@ def get_buildings(code):
     print(f'output/json/{code}.png are saved')
 
 if __name__ == '__main__':
-    code_list = ['B6', 'C5', 'D6', 'D7']
-    # code_list = ['C6']
+    # code_list = ['B6', 'C5', 'C6', 'D6', 'D7', 'C7', 'B6']
+    code_list = ['A4', 'A5', 'A6', 'B4', 'C4', 'D4', 'E4', 'E5', 'E6', 'E7']
+    code_list = ['A4', 'A6']
 
     for code in code_list:
         export_raster(code)
