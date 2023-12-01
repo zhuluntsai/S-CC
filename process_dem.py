@@ -85,7 +85,7 @@ def mask_filter(code, elevation, label):
     sigma = 1
 
     blank_mask = np.zeros((img['height'], img['width']))
-    for k in tqdm(list(label_dict.keys())):
+    for k in list(label_dict.keys()):
         anns_ids = coco.getAnnIds(imgIds=img['id'], catIds=k, iscrowd=None)
         anns = coco.loadAnns(anns_ids)
         cat_mask = np.zeros((img['height'], img['width']))
@@ -104,10 +104,10 @@ def mask_filter(code, elevation, label):
             cat_mask = box_filter(mask_elevation, label, sigma, k) * (label == k)
         
         check_mask(cat_mask, f'output/mask/{code}_{k}.png')
-        np.save(f'output/mask/{code}_{k}.png', cat_mask)
+        np.save(f'output/mask/{code}_{k}.npy', cat_mask)
         blank_mask = add_mask(cat_mask, blank_mask)    
     
-    np.save(f'output/dem/{code}_final.png', blank_mask)
+    np.save(f'output/dem/{code}_final.npy', blank_mask)
     return blank_mask
 
 def stick(code_list):
