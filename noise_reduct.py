@@ -105,6 +105,7 @@ def check_mask(data, filename):
     fig = plt.figure(dpi=500)
 
     ax = plt.subplot(211)
+    # ax.set_title(label_dict[int(filename.split('/')[2].split('.')[0])])
     binwidth = 0.1
     temp = [ d for d in data.ravel() if d != 0 ]
     bins = np.arange(np.min(temp), np.max(temp) + binwidth, binwidth)
@@ -145,7 +146,7 @@ def box_filter(elevation, label, sigma, cat_id):
 
     new_image = np.zeros(elevation.shape)
     for x in range(0, width, 1):
-        if np.sum((elevation[:, x] > 0)) == 0:
+        if np.sum((label[:, x] > 0)) == 0:
             continue
         for y in range(0, height, 1):
             pixel = elevation[y, x]

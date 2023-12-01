@@ -22,7 +22,7 @@ def export_raster(code):
     output_path = f'output/dem/{code}_dem.png'
     
     dsm = rxr.open_rasterio(tif_file, masked=True).squeeze()
-    dsm_array = np.array(dsm)
+    dsm_array = np.array(dsm)[:-1, 1:]
 
     with Image.open(png_file) as image:
         w, h = image.size
@@ -122,9 +122,8 @@ def get_buildings(code):
     print(f'output/json/{code}.png are saved')
 
 if __name__ == '__main__':
-    # code_list = ['B6', 'C5', 'C6', 'D6', 'D7', 'C7', 'B6']
-    code_list = ['A4', 'A5', 'A6', 'B4', 'C4', 'D4', 'E4', 'E5', 'E6', 'E7']
-    code_list = ['A4', 'A6']
+    code_list = ['A4', 'A5', 'A6', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'D4', 'D5', 'D6', 'D7']
+    code_list = ['E4', 'E5', 'E6', 'E7']
 
     for code in code_list:
         export_raster(code)
