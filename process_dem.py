@@ -2,6 +2,7 @@ import json
 import numpy as np
 from pycocotools.coco import COCO
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from tqdm import tqdm
 from PIL import Image
 from noise_reduct import IQR, check_mask, box_filter
@@ -9,11 +10,14 @@ from skimage.transform import resize
 
 label_dict = {
     # -1: 'all',
-    # 0: 'background',
+    0: 'background',
     1: 'asphalt',
     2: 'buildings',
+    3: 'cobble stone',
     4: 'grass',
+    5: 'bare soil',
     6: 'pedestrian walk',
+    7: 'water',
     8: 'trees', 
 }
 
@@ -123,6 +127,14 @@ def stick(code_list):
     # blank_mask = np.zeros((h * len(index), w * len(letters), 4))
     blank_mask = np.zeros((h * len(index), w * len(letters)))
     print(blank_mask.shape)
+
+    vmin = []
+    vmax = []
+    
+    for i in range(len(code_list)):
+        elevation = np.load(f'output/dem/{code_list[i]}_final.npy')
+        vmin.append(np.min(elevation))
+        vmax.append(np.max(elevation))
     
     for x, l in enumerate(letters):
         for y, i in enumerate(index):
@@ -135,23 +147,60 @@ def stick(code_list):
 
                 # mask_elevation = mask_filter(code, elevation, label)
                 
+                plt.imsave(f'output/dem/{code}_final.png', elevation, vmin=np.min(vmin), vmax=np.max(vmax), cmap='plasma')
                 # blank_mask[h*y: h*(y+1), w*x: w*(x+1), :] = image
-                elevation = resize(elevation[:-3 , 3:], elevation.shape)
-                # np.save(f'output/dem/{code}_process.npy', elevation)
                 blank_mask[h*y: h*(y+1), w*x: w*(x+1)] = label
 
     plt.imsave(f'output/test.png', blank_mask)
     # np.save(f'output/label/label.npy', label.astype(int))
     # np.savetxt("test.csv", blank_mask[1600:1700, :].astype(int), delimiter=",")
 
+def plot_elevation(code_list):
+    vmin = []
+    vmax = []
 
+    for i in range(len(code_list)):
+        elevation = np.load(f'output/dem/{code_list[i]}_final.npy')
+        vmin.append(np.min(elevation))
+        vmax.append(np.max(elevation))
+
+    fig, axs = plt.subplots(1, 3, dpi=500, figsize=(10, 4))
+
+    for i in range(len(code_list)):
+        ax = axs[i]
+        ax.set_title(code_list[i])
+        ax.axis('off')
+        elevation = np.load(f'output/dem/{code_list[i]}_final.npy')
+        im = ax.imshow(elevation, vmin=np.min(vmin), vmax=np.max(vmax))
+    
+    cbar = fig.colorbar(im, ax=axs, location='bottom')
+    cbar.ax.tick_params(labelsize=20)
+    plt.savefig('output/test.png')
+
+def plot_label(code_list):
+    fig, axs = plt.subplots(1, 3, dpi=500, figsize=(10, 4))
+
+    for i in range(len(code_list)):
+        ax = axs[i]
+        ax.set_title(code_list[i])
+        ax.axis('off')
+        elevation = np.load(f'output/label/{code_list[i]}.npy')
+        cmap = plt.get_cmap('plasma', 9)
+        ax.imshow(elevation, cmap=cmap)
+
+    patch_list = [ patches.Patch(facecolor=c, label=l) for c, l in zip(cmap(np.arange(0, 9, 1)), list(label_dict.values())) ]
+    fig.legend(handles=patch_list, loc='lower center', ncol=3)
+    plt.savefig('output/test.png')
 
 if __name__ == '__main__':
     code_list = ['A4', 'A5', 'A6', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'D5', 'D6', 'D7']
 
-    # code_list = ['B4', 'C4', 'C5']
+    code_list = ['A5', 'B4', 'C4']
     # for code in code_list:
     #     combine_image_id(code)
-    #     convert_to_mask(code)
+    #      convert_to_mask(code)
+    
+    # plot_elevation(code_list)
+    # plot_label(code_list)
 
     stick(code_list)
