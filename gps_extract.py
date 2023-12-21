@@ -7,6 +7,8 @@ import numpy as np
 import csv
 from pyproj import Transformer
 from tqdm import tqdm
+from pyproj import Transformer
+from osgeo import gdal, osr
 
 def export_csv():
     directory = 'gps_data'
@@ -192,13 +194,69 @@ def extract_frequency():
 #                             'E12', 'E13' ]:
 #             writer.writerow(row[0].split(','))
 
-    
+def export_geotiff(code_list):
+    letters = list(string.ascii_uppercase)[:12]
+    index = np.arange(1, 14, 1)
+    print(letters)
+    print(index)
 
+    x_start = 275948
+    width = 594
+
+    y_start = 3288502
+    height = 420
+    
+    x_grid = [x_start, ]
+    y_grid = [y_start, ]
+    
+    for x, l in enumerate(letters):
+        x_max = x_start + width * (x + 1)
+        x_grid.append(x_max)
+
+    for y, i in enumerate(index):
+        y_max = y_start + height * (y + 1)
+        y_grid.append(y_max)
+    y_grid.reverse()
+
+    out_srs = osr.SpatialReference()
+    out_srs.ImportFromEPSG(6344)
+    for x, l in enumerate(letters):
+        for y, i in enumerate(index):
+            code = f'{l}{i}'
+            if code in code_list:
+                elevation = np.load(f'output/dem/{code}_final.npy')
+                label = np.load(f'output/label/{code}.npy')
+                band_list = [elevation, label]
+
+                x1, x2 = x_grid[x], x_grid[x + 1]
+                y1, y2 = y_grid[y], y_grid[y + 1]
+
+                height = elevation.shape[0]
+                width = elevation.shape[1]
+
+                x_res = (x2 - x1)/width
+                y_res = (y2 - y1)/height
+
+                driver = gdal.GetDriverByName('GTiff')
+                out_ds = driver.Create(f'output/tif/{code}.tif', width, height, len(band_list), gdal.GDT_Float32)
+                out_ds.SetGeoTransform((x1, x_res, 0, y1, 0, y_res))  
+
+                for band_no in range(len(band_list)):
+                    band = out_ds.GetRasterBand(band_no + 1)
+                    band.WriteArray(band_list[band_no])
+                    band.FlushCache()
+                    
+                
+                out_ds.SetProjection(out_srs.ExportToWkt())
+                out_ds = None
 
 def main():
     # export_csv()
     # extract_frequency()
-    exclude()
+    # exclude()
+
+    code_list = ['A4', 'A5', 'A6', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'D4', 'D5', 'D6', 'D7', 'E4', 'E5', 'E6', 'E7']
+    export_geotiff(code_list)
 
 
 if __name__ == '__main__':

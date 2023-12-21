@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from tqdm import tqdm
 from PIL import Image
-from noise_reduct import IQR, check_mask, box_filter
+from noise_reduct import IQR, check_mask, box_filter, check_dem_label
 from skimage.transform import resize
 
 label_dict = {
@@ -125,14 +125,14 @@ def stick(code_list):
     img = coco.imgs[1]
     h, w= img['height'], img['width']
     # blank_mask = np.zeros((h * len(index), w * len(letters), 4))
-    blank_mask = np.zeros((h * len(index), w * len(letters)))
-    print(blank_mask.shape)
+    blank_elevation = np.zeros((h * len(index), w * len(letters)))
+    blank_label = np.zeros((h * len(index), w * len(letters)))
 
     vmin = []
     vmax = []
     
     for i in range(len(code_list)):
-        elevation = np.load(f'output/dem/{code_list[i]}_final.npy')
+        elevation = np.load(f'output/dem/{code_list[i]}.npy')
         vmin.append(np.min(elevation))
         vmax.append(np.max(elevation))
     
@@ -147,13 +147,12 @@ def stick(code_list):
 
                 # mask_elevation = mask_filter(code, elevation, label)
                 
-                plt.imsave(f'output/dem/{code}_final.png', elevation, vmin=np.min(vmin), vmax=np.max(vmax), cmap='plasma')
+                # plt.imsave(f'output/dem/{code}_final.png', elevation, vmin=np.min(vmin), vmax=np.max(vmax), cmap='plasma')
                 # blank_mask[h*y: h*(y+1), w*x: w*(x+1), :] = image
-                blank_mask[h*y: h*(y+1), w*x: w*(x+1)] = label
+                blank_elevation[h*y: h*(y+1), w*x: w*(x+1)] = elevation
+                blank_label[h*y: h*(y+1), w*x: w*(x+1)] = label
 
-    plt.imsave(f'output/test.png', blank_mask)
-    # np.save(f'output/label/label.npy', label.astype(int))
-    # np.savetxt("test.csv", blank_mask[1600:1700, :].astype(int), delimiter=",")
+    return blank_elevation, blank_label    
 
 def plot_elevation(code_list):
     vmin = []
@@ -193,14 +192,17 @@ def plot_label(code_list):
     plt.savefig('output/test.png')
 
 if __name__ == '__main__':
-    code_list = ['A4', 'A5', 'A6', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'D5', 'D6', 'D7']
+    code_list = ['A4', 'A5', 'A6', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'D4', 'D5', 'D6', 'D7', 'E4', 'E5', 'E6', 'E7']
+    code_list = ['B5', 'C5']
 
-    code_list = ['A5', 'B4', 'C4']
     # for code in code_list:
     #     combine_image_id(code)
-    #      convert_to_mask(code)
+    #     convert_to_mask(code)
     
     # plot_elevation(code_list)
     # plot_label(code_list)
 
-    stick(code_list)
+    elevation, label = stick(code_list)
+    plt.imsave(f'output/test.png', elevation)
+
+    check_dem_label(elevation, label.astype(int))
