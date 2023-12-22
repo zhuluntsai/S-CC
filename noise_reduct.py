@@ -137,15 +137,15 @@ def check_boxplot(elevation, label):
 def box_filter(elevation, label, sigma, cat_id, kernel_size):
     height, width = elevation.shape
     temp = [d for d in elevation.ravel() if d != 0]
+    threshold = np.max(temp)
     std = np.std(temp)
     mean = np.mean(temp)
 
-    threshold = np.max(temp)
     std_threshold = 0.5
     if cat_id in [4, 6]:
         std_threshold = 0.2
 
-    while std > std_threshold:
+    while std > std_threshold and cat_id != 8:
         threshold -= 0.1
         temp = [t for t in temp if t < threshold]
         std = np.std(temp)

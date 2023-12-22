@@ -10,14 +10,14 @@ from skimage.transform import resize
 
 label_dict = {
     # -1: 'all',
-    0: 'background',
+    # 0: 'background',
     1: 'asphalt',
     2: 'buildings',
-    3: 'cobble stone',
+    # 3: 'cobble stone',
     4: 'grass',
-    5: 'bare soil',
+    # 5: 'bare soil',
     6: 'pedestrian walk',
-    7: 'water',
+    # 7: 'water',
     8: 'trees', 
 }
 
@@ -94,21 +94,32 @@ def mask_filter(code, elevation, label):
         anns = coco.loadAnns(anns_ids)
         cat_mask = np.zeros((img['height'], img['width']))
         
-        if k in [2, 8]:
+        # instance wise
+        if k in [2, 4, 6, 8]:
             mask = coco.annToMask(anns[0])
             for i, annotation in enumerate(tqdm(anns)):
                 mask = coco.annToMask(annotation)
-                mask_elevation = elevation * mask
-                mask_elevation = box_filter(mask_elevation, label, sigma, k) * mask
-                cat_mask = add_mask(mask_elevation, cat_mask)                
+                mask_elevation = elevation * mask * (label == k) 
+                mask_elevation = box_filter(mask_elevation, label, sigma, k, 5) * mask
+                cat_mask = add_mask(mask_elevation, cat_mask) 
 
-        if k in [1, 4, 6]:
-            mask_elevation = elevation * (label == k)
-            mask_elevation = IQR(mask_elevation.ravel()).reshape(label.shape)
-            cat_mask = box_filter(mask_elevation, label, sigma, k) * (label == k)
+        # if k in [4, 6]:
+        #     mask = coco.annToMask(anns[0])
+        #     for i, annotation in enumerate(tqdm(anns)):
+        #         mask = coco.annToMask(annotation)
+        #         mask_elevation = elevation * mask
+        #         mask_elevation = box_filter(mask_elevation, label, sigma, k, 5) * mask
+        #         cat_mask = add_mask(mask_elevation, cat_mask)        
+        #         break        
+
+        # all intances
+        if k in [1]:
+            cat_mask = elevation * (label == k)
+        #     mask_elevation = IQR(mask_elevation.ravel()).reshape(label.shape)
+        #     cat_mask = box_filter(mask_elevation, label, sigma, k) * (label == k)
         
-        check_mask(cat_mask, f'output/mask/{code}_{k}.png')
         np.save(f'output/mask/{code}_{k}.npy', cat_mask)
+        check_mask(cat_mask, f'output/mask/{code}_{k}.png')
         blank_mask = add_mask(cat_mask, blank_mask)    
     
     np.save(f'output/dem/{code}_final.npy', blank_mask)
@@ -142,6 +153,7 @@ def stick(code_list):
             if code in code_list:
                 elevation = np.load(f'output/dem/{code}.npy')
                 label = np.load(f'output/label/{code}.npy')
+                ground = np.load(f'output/mask/{code}_1.npy')
 
                 image = np.asarray(Image.open(f'data/{code}.png')) / 255
 
