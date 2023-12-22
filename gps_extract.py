@@ -250,13 +250,70 @@ def export_geotiff(code_list):
                 out_ds.SetProjection(out_srs.ExportToWkt())
                 out_ds = None
 
+def export_all_geotiff():
+    letters = list(string.ascii_uppercase)[:12]
+    index = np.arange(1, 14, 1)
+    print(letters)
+    print(index)
+
+    x_start = 275948
+    width = 594
+
+    y_start = 3288502
+    height = 420
+    
+    x_grid = [x_start, ]
+    y_grid = [y_start, ]
+    
+    for x, l in enumerate(letters):
+        x_max = x_start + width * (x + 1)
+        x_grid.append(x_max)
+
+    for y, i in enumerate(index):
+        y_max = y_start + height * (y + 1)
+        y_grid.append(y_max)
+    y_grid.reverse()
+
+    out_srs = osr.SpatialReference()
+    out_srs.ImportFromEPSG(6344)
+
+    x1, x2 = x_grid[0], x_grid[5]
+    y1, y2 = y_grid[3], y_grid[7]
+
+    elevation = np.load(f'output/DEM_combine.npy')
+    label = np.load(f'output/label_combine.npy')
+    elevation = label
+    band_list = [label]
+
+    print(elevation.shape)
+
+    height = elevation.shape[0]
+    width = elevation.shape[1]
+
+    x_res = (x2 - x1)/width
+    y_res = (y2 - y1)/height
+
+    driver = gdal.GetDriverByName('GTiff')
+    out_ds = driver.Create(f'output/tif_combine.tif', width, height, len(band_list), gdal.GDT_Float32)
+    out_ds.SetGeoTransform((x1, x_res, 0, y1, 0, y_res))  
+
+    for band_no in range(len(band_list)):
+        band = out_ds.GetRasterBand(band_no + 1)
+        band.WriteArray(band_list[band_no])
+        band.FlushCache()
+    
+    out_ds.SetProjection(out_srs.ExportToWkt())
+    out_ds = None
+
 def main():
     # export_csv()
     # extract_frequency()
     # exclude()
 
     code_list = ['A4', 'A5', 'A6', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'D4', 'D5', 'D6', 'D7', 'E4', 'E5', 'E6', 'E7']
-    export_geotiff(code_list)
+    code_list = ['C5']
+    # export_geotiff(code_list)
+    export_all_geotiff()
 
 
 if __name__ == '__main__':

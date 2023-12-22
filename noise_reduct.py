@@ -134,13 +134,24 @@ def check_boxplot(elevation, label):
     fig.colorbar(im, ticks=v)
     plt.savefig(f'output/test.png')
 
-def box_filter(elevation, label, sigma, cat_id):
+def box_filter(elevation, label, sigma, cat_id, kernel_size):
     height, width = elevation.shape
     temp = [d for d in elevation.ravel() if d != 0]
     std = np.std(temp)
     mean = np.mean(temp)
 
-    kernel = np.ones((5, 5))
+    threshold = np.max(temp)
+    std_threshold = 0.5
+    if cat_id in [4, 6]:
+        std_threshold = 0.2
+
+    while std > std_threshold:
+        threshold -= 0.1
+        temp = [t for t in temp if t < threshold]
+        std = np.std(temp)
+        mean = np.mean(temp)    
+
+    kernel = np.ones((kernel_size, kernel_size))
     kernel_center = [int(kernel.shape[0]/2), int(kernel.shape[1]/2)]
     count = [0, 0]
 
@@ -151,7 +162,8 @@ def box_filter(elevation, label, sigma, cat_id):
         for y in range(0, height, 1):
             pixel = elevation[y, x]
 
-            if pixel == 0 and label[y, x] == cat_id:
+            # kernel mean
+            if (pixel == 0 or pixel > threshold) and label[y, x] == cat_id:
                 new_image[y, x] = mean
                 continue
             elif mean - std * sigma < pixel and pixel < mean + std * sigma:
@@ -168,6 +180,9 @@ def box_filter(elevation, label, sigma, cat_id):
                         put_pixel_x = x + i - kernel_center[0]
                         put_pixel_y = y + j - kernel_center[1]
                         try:
+                            # label overlap with tree
+                            if label[put_pixel_y, put_pixel_x] == 8 and cat_id != 8:
+                                continue
                             kernel_list.append(elevation[put_pixel_y, put_pixel_x])
                         except:
                             pass
@@ -235,9 +250,9 @@ def mask_filter(elevation, label):
     # ax.imshow(mask_mask * mask_mask, cmap=cmap, alpha=1, vmin=mask_mask.min() + 0.001)
     # plt.savefig('output/overlap2.png')
          
-def check_dem_label(blank_elevation, label):
+def check_dem_label(elevation, label):
     # blank_elevation = np.multiply(blank_elevation, label)
-    blank_elevation = standard_deviation(blank_elevation.ravel(), 9).reshape(blank_elevation.shape)
+    # blank_elevation = standard_deviation(blank_elevation.ravel(), 9).reshape(blank_elevation.shape)
     # fig, ax = plt.subplots(dpi=500)
     # im = ax.imshow(blank_elevation, cmap='viridis', vmin=blank_elevation.min(), vmax=blank_elevation.max())
     # v = np.linspace(blank_elevation.min(), blank_elevation.max(), 15, endpoint=True)
@@ -248,16 +263,16 @@ def check_dem_label(blank_elevation, label):
     # blank_elevation = cv2.blur(blank_elevation, (3, 3))
     # blank_elevation = cv2.dilate(blank_elevation, (3, 3))
     # blank_elevation = cv2.dilate(blank_elevation, kernel)
-    blank_elevation = boxfilter(blank_elevation, label)
+    # blank_elevation = boxfilter(blank_elevation, label)
 
     cmap = mpl.colors.ListedColormap(["gray", "black", "orange", "black", "lime", "black", "red", "blue", "green"])
     # ax3 = plt.subplot(313)
-    fig = plt.figure(dpi=500)
-    section = [650, 580]
-    print(blank_elevation.shape)
-    x = blank_elevation[section[1], :]
+    fig = plt.figure(dpi=500, figsize=(12, 6))
+    print(elevation.shape)
+    section = [int(elevation.shape[1]/2), int(elevation.shape[0]/2)]
+    x = elevation[section[1], :]
     x_label = label[section[1], :]
-    y = blank_elevation[:, section[0]]
+    y = elevation[:, section[0]]
     y_label = label[:, section[0]]
 
     # x = batch(x)
@@ -268,30 +283,31 @@ def check_dem_label(blank_elevation, label):
                       wspace=0.05, hspace=0.05)
 
     ax = fig.add_subplot(gs[1, 0])
-    ax.imshow(blank_elevation)
+    ax.imshow(elevation)
     # ax.axvline(x=section[0], color='r')
     # ax.axhline(y=section[1], color='r')
-    ax.scatter(np.repeat(section[0], len(y)), np.arange(len(y)), color=cmap(y_label)[:, :3], s=0.1)
+    # ax.scatter(np.repeat(section[0], len(y)), np.arange(len(y)), color=cmap(y_label)[:, :3], s=0.1)
     ax.scatter(np.arange(len(x)), np.repeat(section[1], len(x)), color=cmap(x_label)[:, :3], s=0.1)
 
     ax_x = fig.add_subplot(gs[0, 0], sharex=ax)
-    ax_y = fig.add_subplot(gs[1, 1], sharey=ax)
+    # ax_y = fig.add_subplot(gs[1, 1], sharey=ax)
 
     ax_x.tick_params(axis="x", labelbottom=False)
-    ax_y.tick_params(axis="y", labelleft=False)
+    # ax_y.tick_params(axis="y", labelleft=False)
 
 
     ax_x.plot(x, alpha=0.2)
     ax_x.scatter(np.arange(len(x)), x, color=cmap(x_label)[:, :3], s=0.2)
-    ax_y.plot(y, np.arange(len(y)), alpha=0.2)
-    ax_y.scatter(y, np.arange(len(y)), color=cmap(y_label)[:, :3], s=0.2)
+    ax_x.set_ylim([np.min([ xx for xx in x if xx > 0 ]), np.max(x)])
+    # ax_y.plot(y, np.arange(len(y)), alpha=0.2)
+    # ax_y.scatter(y, np.arange(len(y)), color=cmap(y_label)[:, :3], s=0.2)
     plt.savefig('output/dem_from_point_cloud.png')
 
 def las_to_elevation():
-    las = laspy.read("stratmap18-50cm_2995222a1output(2).las")
+    las = laspy.read("no_use/stratmap18-50cm_2995222a1output(2).las")
     point_data_1 = np.stack([las.x, las.y, las.z, las.classification], axis=0).transpose((1, 0))
 
-    las = laspy.read("stratmap18-50cm_2995222a3output(2).las")
+    las = laspy.read("no_use/stratmap18-50cm_2995222a3output(2).las")
     point_data_2 = np.stack([las.x, las.y, las.z, las.classification], axis=0).transpose((1, 0))
 
     point_data = np.vstack((point_data_1, point_data_2))
@@ -301,7 +317,7 @@ def las_to_elevation():
     print(delta * 2)
     print(point_data.shape)
 
-    label = np.load('label.npy')
+    label = np.load('output/label/C6.npy')
     print(label.shape)
 
     lowerbound = 10.3
@@ -323,6 +339,8 @@ def las_to_elevation():
         #         keep_point.append(point)
         #     else:
         #         remove_point.append(point)
+
+    return point_data
     
     keep_point = np.array(keep_point)
     remove_point = np.array(remove_point)
@@ -340,21 +358,28 @@ def point_visualization(point):
     cmap = mpl.colors.ListedColormap(["gray", "black", "yellow", "black", "lime", "black", "red", "blue", "green"])
     geom.colors = open3d.utility.Vector3dVector(cmap(point[:, 3].astype(int))[:, :3])
     
-    # open3d.visualization.draw_geometries([geom])
-    open3d.io.write_point_cloud('label.pcd', geom)
+    open3d.visualization.draw_geometries([geom])
+    # open3d.io.write_point_cloud('label.pcd', geom)
 
-# def main():
-    # elevation = np.load('elevation.npy')
-    # label = np.load('label.npy')
+def main():
+    elevation = np.load('output/dem/C6_final.npy')
+    label = np.load('output/label/C6.npy')
+
+    print(set(label.flatten()))
 
     # file_path = 'data/a5_las_lasda_23.tif'
     # dsm = rxr.open_rasterio(file_path, masked=True).squeeze()
     # dsm_array = np.array(dsm)
     # elevation = resize(dsm_array, elevation.shape)
 
-    # # check_dem_label(elevation, label)
+    check_dem_label(elevation, label)
     # # check_boxplot(elevation, label)
     # mask_filter(elevation, label)
 
-# if __name__ == '__main__':
-#     main()
+
+    # point = las_to_elevation()
+    # print(point.shape)
+    # point_visualization(point)
+
+if __name__ == '__main__':
+    main()
