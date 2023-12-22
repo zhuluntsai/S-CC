@@ -141,11 +141,13 @@ def box_filter(elevation, label, sigma, cat_id, kernel_size):
     std = np.std(temp)
     mean = np.mean(temp)
 
-    std_threshold = 0.5
-    if cat_id in [4, 6]:
+    std_threshold = 10000
+    if cat_id in [2]:
+        std_threshold = 1
+    elif cat_id in [4, 6]:
         std_threshold = 0.2
 
-    while std > std_threshold and cat_id != 8:
+    while std > std_threshold:
         threshold -= 0.1
         temp = [t for t in temp if t < threshold]
         std = np.std(temp)
@@ -189,7 +191,7 @@ def box_filter(elevation, label, sigma, cat_id, kernel_size):
             
             kernel_list = [k for k in kernel_list if k != 0]
             if len(kernel_list) == 0:
-                kernel_list.append(0)
+                kernel_list.append(mean)
             new_image[y, x] = np.mean(kernel_list)
     
     return new_image

@@ -99,7 +99,8 @@ def mask_filter(code, elevation, label):
             mask = coco.annToMask(anns[0])
             for i, annotation in enumerate(tqdm(anns)):
                 mask = coco.annToMask(annotation)
-                mask_elevation = elevation * mask * (label == k) 
+                mask_elevation = elevation * mask
+                if k in [4, 6]: mask_elevation *= (label == k) 
                 mask_elevation = box_filter(mask_elevation, label, sigma, k, 5) * mask
                 cat_mask = add_mask(mask_elevation, cat_mask) 
 
@@ -151,9 +152,9 @@ def stick(code_list):
         for y, i in enumerate(index):
             code = f'{l}{i}'
             if code in code_list:
-                elevation = np.load(f'output/dem/{code}.npy')
+                elevation = np.load(f'output/dem/{code}_final.npy')
                 label = np.load(f'output/label/{code}.npy')
-                ground = np.load(f'output/mask/{code}_1.npy')
+                # ground = np.load(f'output/mask/{code}_1.npy')
 
                 image = np.asarray(Image.open(f'data/{code}.png')) / 255
 
