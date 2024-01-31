@@ -5,6 +5,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from pycocotools.coco import COCO
+import cv2 as cv
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -134,67 +135,32 @@ def check_boxplot(elevation, label):
     fig.colorbar(im, ticks=v)
     plt.savefig(f'output/test.png')
 
-def box_filter(elevation, label, sigma, cat_id, kernel_size):
-    height, width = elevation.shape
+def box_filter(elevation, mask, sigma, kernel_size):
     temp = [d for d in elevation.ravel() if d != 0]
-    threshold = np.max(temp)
     std = np.std(temp)
     mean = np.mean(temp)
 
-    std_threshold = 10000
-    if cat_id in [2]:
-        std_threshold = 1
-    elif cat_id in [4, 6]:
-        std_threshold = 0.2
+    lower_bound = mean - std * sigma
+    upper_bound = mean + std * sigma
+    elevation = np.ma.masked_outside(elevation, lower_bound, upper_bound)
+    for shift in (-3, 3):
+        for axis in (0, 1):        
+            a_shifted = np.roll(elevation, shift=shift, axis=axis)
+            idx =~ a_shifted.mask * elevation.mask
+            elevation[idx]=a_shifted[idx]
 
-    while std > std_threshold:
-        threshold -= 0.1
-        temp = [t for t in temp if t < threshold]
-        std = np.std(temp)
-        mean = np.mean(temp)    
+    # plt.imsave(f'output/test.png', elevation)
+    kernel = np.ones((kernel_size, kernel_size), np.float32) / kernel_size**2
+    new_image = cv.filter2D(elevation, -1, kernel)
+    i = 0
+    while np.sum(new_image * mask > 0) < np.sum(mask > 0) and i < 100:
+        i += 1
+        new_image = cv.erode(new_image, kernel)
+        new_image = cv.dilate(new_image, kernel, iterations=5)
+        new_image = cv.filter2D(new_image, -1, kernel)
+        # print(i, np.sum(new_image * mask > 0), np.sum(mask > 0))
 
-    kernel = np.ones((kernel_size, kernel_size))
-    kernel_center = [int(kernel.shape[0]/2), int(kernel.shape[1]/2)]
-    count = [0, 0]
-
-    new_image = np.zeros(elevation.shape)
-    for x in range(0, width, 1):
-        if np.sum((label[:, x] > 0)) == 0:
-            continue
-        for y in range(0, height, 1):
-            pixel = elevation[y, x]
-
-            # kernel mean
-            if (pixel == 0 or pixel > threshold) and label[y, x] == cat_id:
-                new_image[y, x] = mean
-                continue
-            elif mean - std * sigma < pixel and pixel < mean + std * sigma:
-                new_image[y, x] = pixel
-                count[0] += 1
-                continue
-            elif pixel == 0:
-                continue
-
-            kernel_list = []
-            for i in range(0, kernel.shape[0], 1):
-                for j in range(0, kernel.shape[1], 1):
-                    if kernel[i, j] == 1:
-                        put_pixel_x = x + i - kernel_center[0]
-                        put_pixel_y = y + j - kernel_center[1]
-                        try:
-                            # label overlap with tree
-                            if label[put_pixel_y, put_pixel_x] == 8 and cat_id != 8:
-                                continue
-                            kernel_list.append(elevation[put_pixel_y, put_pixel_x])
-                        except:
-                            pass
-            
-            kernel_list = [k for k in kernel_list if k != 0]
-            if len(kernel_list) == 0:
-                kernel_list.append(mean)
-            new_image[y, x] = np.mean(kernel_list)
-    
-    return new_image
+    return new_image * mask
 
 def mask_filter(elevation, label):
     json_file = 'combine.json'

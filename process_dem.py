@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from tqdm import tqdm
 from PIL import Image
-from noise_reduct import IQR, check_mask, box_filter, check_dem_label
-from skimage.transform import resize
+# from skimage.transform import resize
+import cv2 as cv
 
 label_dict = {
     # -1: 'all',
@@ -82,11 +82,54 @@ def add_mask(new, canvas):
     
     return canvas
 
+def check_mask(data, filename):
+    fig = plt.figure(dpi=500)
+
+    ax = plt.subplot(211)
+    # ax.set_title(label_dict[int(filename.split('/')[2].split('.')[0])])
+    binwidth = 0.1
+    temp = [ d for d in data.ravel() if d != 0 ]
+    bins = np.arange(np.min(temp), np.max(temp) + binwidth, binwidth)
+    plt.hist(temp, bins=bins)
+
+    ax = plt.subplot(212)
+    im = ax.imshow(data, cmap='viridis', vmin=data.min(), vmax=data.max())
+    v = np.linspace(data.min(), data.max(), 15, endpoint=True)
+    fig.colorbar(im, ticks=v)
+    plt.savefig(filename)
+    print(f'{filename} are saved')
+
+def box_filter(elevation, mask, sigma, kernel_size):
+    temp = [d for d in elevation.ravel() if d != 0]
+    std = np.std(temp)
+    mean = np.mean(temp)
+
+    lower_bound = mean - std * sigma
+    upper_bound = mean + std * sigma
+    elevation = np.ma.masked_outside(elevation, lower_bound, upper_bound)
+    for shift in (-3, 3):
+        for axis in (0, 1):        
+            a_shifted = np.roll(elevation, shift=shift, axis=axis)
+            idx =~ a_shifted.mask * elevation.mask
+            elevation[idx]=a_shifted[idx]
+
+    kernel = np.ones((kernel_size, kernel_size), np.float32) / kernel_size**2
+    new_image = cv.filter2D(elevation, -1, kernel)
+    i = 0
+    while np.sum(new_image * mask > 0) < np.sum(mask > 0) and i < 100:
+        i += 1
+        new_image = cv.erode(new_image, kernel)
+        new_image = cv.dilate(new_image, kernel, iterations=5)
+        new_image = cv.filter2D(new_image, -1, kernel)
+
+    return new_image * mask
+
 def mask_filter(code, elevation, label):
     json_file = f'output/json/{code}_combine.json'
     coco = COCO(json_file)
     img = coco.imgs[1]
     sigma = 1
+    kernel_size = 5
 
     blank_mask = np.zeros((img['height'], img['width']))
     for k in list(label_dict.keys()):
@@ -101,25 +144,15 @@ def mask_filter(code, elevation, label):
                 mask = coco.annToMask(annotation)
                 mask_elevation = elevation * mask
                 if k in [4, 6]: mask_elevation *= (label == k) 
-                mask_elevation = box_filter(mask_elevation, label, sigma, k, 5) * mask
+                mask_elevation = box_filter(mask_elevation, mask, sigma, kernel_size)                
                 cat_mask = add_mask(mask_elevation, cat_mask) 
-
-        # if k in [4, 6]:
-        #     mask = coco.annToMask(anns[0])
-        #     for i, annotation in enumerate(tqdm(anns)):
-        #         mask = coco.annToMask(annotation)
-        #         mask_elevation = elevation * mask
-        #         mask_elevation = box_filter(mask_elevation, label, sigma, k, 5) * mask
-        #         cat_mask = add_mask(mask_elevation, cat_mask)        
-        #         break        
 
         # all intances
         if k in [1]:
-            cat_mask = elevation * (label == k)
-        #     mask_elevation = IQR(mask_elevation.ravel()).reshape(label.shape)
-        #     cat_mask = box_filter(mask_elevation, label, sigma, k) * (label == k)
-        
-        np.save(f'output/mask/{code}_{k}.npy', cat_mask)
+            mask_elevation = elevation * (label == k)
+            cat_mask = box_filter(mask_elevation, (label == k), sigma, kernel_size)
+
+        # np.save(f'output/mask/{code}_{k}.npy', cat_mask)
         check_mask(cat_mask, f'output/mask/{code}_{k}.png')
         blank_mask = add_mask(cat_mask, blank_mask)    
     
@@ -206,7 +239,6 @@ def plot_label(code_list):
 
 if __name__ == '__main__':
     code_list = ['A4', 'A5', 'A6', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'D4', 'D5', 'D6', 'D7', 'E4', 'E5', 'E6', 'E7']
-    code_list = ['B5', 'C5']
 
     # for code in code_list:
     #     combine_image_id(code)
@@ -216,6 +248,8 @@ if __name__ == '__main__':
     # plot_label(code_list)
 
     elevation, label = stick(code_list)
+    # other = np.load(f'output/dem/{code_list[0]}_final.npy')
+    # elevation = add_mask(elevation, other)
     plt.imsave(f'output/test.png', elevation)
 
-    check_dem_label(elevation, label.astype(int))
+    # check_dem_label(elevation, label.astype(int))

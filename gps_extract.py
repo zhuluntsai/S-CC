@@ -282,8 +282,8 @@ def export_all_geotiff():
 
     elevation = np.load(f'output/DEM_combine.npy')
     label = np.load(f'output/label_combine.npy')
-    elevation = label
-    band_list = [label]
+    # elevation = label
+    band_list = [label, elevation]
 
     print(elevation.shape)
 
